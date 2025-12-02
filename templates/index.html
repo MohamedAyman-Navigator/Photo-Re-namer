@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Renamer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Photo Renamer</h1>
+            <p>Upload images to automatically rename them by code.</p>
+        </header>
+
+        <main>
+            <div class="upload-area" id="drop-zone">
+                <div class="icon">📁</div>
+                <h3>Drag & Drop images here</h3>
+                <p>or</p>
+                <button id="browse-btn">Browse Files</button>
+                <input type="file" id="file-input" multiple accept="image/*" hidden>
+            </div>
+
+            <div id="file-list" class="file-list hidden">
+                <h3>Selected Files:</h3>
+                <ul id="files-ul"></ul>
+                <button id="process-btn" class="primary-btn">Process & Rename</button>
+            </div>
+
+            <div id="results-area" class="results-area hidden">
+                <h3>Results</h3>
+                <table id="results-table">
+                    <thead>
+                        <tr>
+                            <th>Original Name</th>
+                            <th>New Name</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Results will go here -->
+                    </tbody>
+                </table>
+                <div class="actions">
+                    <a href="/download-all" class="download-btn">Download All (Zip)</a>
+                    <button id="reset-btn" class="secondary-btn">Start Over</button>
+                </div>
+            </div>
+
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <p>Processing images... This may take a moment.</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const fileList = document.getElementById('file-list');
+        const filesUl = document.getElementById('files-ul');
+        const processBtn = document.getElementById('process-btn');
+        const resultsArea = document.getElementById('results-area');
+        const resultsTableBody = document.querySelector('#results-table tbody');
+        const loading = document.getElementById('loading');
+        const resetBtn = document.getElementById('reset-btn');
+
+        let selectedFiles = [];
+
+        // Drag & Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        // Browse
+        browseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            renderFileList();
+        }
+
+        function renderFileList() {
+            filesUl.innerHTML = '';
+            if (selectedFiles.length > 0) {
+                fileList.classList.remove('hidden');
+                selectedFiles.forEach(file => {
+                    const li = document.createElement('li');
+                    li.textContent = file.name;
+                    filesUl.appendChild(li);
+                });
+            } else {
+                fileList.classList.add('hidden');
+            }
+        }
+
+        // Process
+        processBtn.addEventListener('click', async () => {
+            if (selectedFiles.length === 0) return;
+
+            loading.classList.remove('hidden');
+            fileList.classList.add('hidden');
+            dropZone.classList.add('hidden');
+
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('files[]', file);
+            });
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json(); // Fix: response was not defined correctly in previous thought block if I were typing, but here it is code.
+
+                renderResults(data.results);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while processing.');
+            } finally {
+                loading.classList.add('hidden');
+            }
+        });
+
+        function renderResults(results) {
+            resultsArea.classList.remove('hidden');
+            resultsTableBody.innerHTML = '';
+
+            results.forEach(res => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${res.original}</td>
+                    <td>${res.new || '-'}</td>
+                    <td class="${res.status.includes('success') ? 'success' : 'error'}">${res.status}</td>
+                `;
+                resultsTableBody.appendChild(tr);
+            });
+        }
+
+        resetBtn.addEventListener('click', () => {
+            selectedFiles = [];
+            renderFileList();
+            resultsArea.classList.add('hidden');
+            dropZone.classList.remove('hidden');
+            fileInput.value = '';
+        });
+    </script>
+</body>
+
+</html>
